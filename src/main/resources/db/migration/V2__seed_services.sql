@@ -1,0 +1,23 @@
+-- 서비스 선택 화면 초기 목록. 가격은 자주 바뀌므로 비워 두고 운영자가 확인 후 채운다.
+INSERT INTO services (name, category, display_order)
+VALUES ('넷플릭스', 'VIDEO', 10),
+       ('유튜브 프리미엄', 'VIDEO', 20),
+       ('디즈니+', 'VIDEO', 30),
+       ('티빙', 'VIDEO', 40),
+       ('쿠팡플레이', 'VIDEO', 50),
+       ('웨이브', 'VIDEO', 60),
+       ('왓챠', 'VIDEO', 70),
+       ('멜론', 'MUSIC', 110),
+       ('스포티파이', 'MUSIC', 120),
+       ('지니뮤직', 'MUSIC', 130),
+       ('쿠팡 와우 멤버십', 'SHOPPING', 210),
+       ('네이버플러스 멤버십', 'SHOPPING', 220),
+       ('배민클럽', 'SHOPPING', 230),
+       ('ChatGPT Plus', 'PRODUCTIVITY', 310),
+       ('Claude Pro', 'PRODUCTIVITY', 320),
+       ('Microsoft 365', 'PRODUCTIVITY', 330),
+       ('Notion', 'PRODUCTIVITY', 340),
+       ('iCloud+', 'CLOUD', 410),
+       ('Google One', 'CLOUD', 420),
+       ('밀리의 서재', 'READING', 510),
+       ('리디셀렉트', 'READING', 520);

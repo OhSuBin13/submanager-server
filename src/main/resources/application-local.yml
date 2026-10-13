@@ -1,0 +1,8 @@
+# 로컬 개발: `docker compose up -d`로 띄운 PostgreSQL 17 사용
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/submanager}
+    username: ${DB_USERNAME:submanager}
+    password: ${DB_PASSWORD:submanager}
+  jpa:
+    show-sql: true

@@ -1,0 +1,16 @@
+# 로컬 개발용 PostgreSQL (운영 RDS와 같은 17 버전)
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: submanager
+      POSTGRES_USER: submanager
+      POSTGRES_PASSWORD: submanager
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
