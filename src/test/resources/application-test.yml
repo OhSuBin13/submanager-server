@@ -1,0 +1,6 @@
+# 테스트용 PostgreSQL (CI는 postgres:17 서비스 컨테이너, 로컬은 docker compose)
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/submanager_test}
+    username: ${TEST_DB_USERNAME:submanager}
+    password: ${TEST_DB_PASSWORD:submanager}
