@@ -6,3 +6,8 @@ spring:
     password: ${DB_PASSWORD:submanager}
   jpa:
     show-sql: true
+
+management:
+  endpoint:
+    health:
+      show-details: always   # 로컬에서는 어떤 항목이 DOWN인지 보이도록
