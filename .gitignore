@@ -1,0 +1,17 @@
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+out/
+bin/
+
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+.env
+.env.*
+*.json.b64
+firebase-*.json
+.DS_Store
