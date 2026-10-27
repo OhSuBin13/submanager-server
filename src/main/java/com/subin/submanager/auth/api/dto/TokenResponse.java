@@ -11,11 +11,17 @@ public record TokenResponse(
         long accessTokenExpiresIn,
         String refreshToken,
         Instant refreshTokenExpiresAt,
-        UserSummary user) {
+        UserSummary user,
+        boolean newUser) {
 
     public static TokenResponse of(User user, String accessToken, Duration accessTokenTtl,
                                    String refreshToken, Instant refreshTokenExpiresAt) {
         return new TokenResponse(accessToken, accessTokenTtl.toSeconds(), refreshToken, refreshTokenExpiresAt,
-                UserSummary.from(user));
+                UserSummary.from(user), false);
+    }
+
+    /** 로그인 API가 가입 여부를 붙여 돌려준다. 앱은 true면 푸시 권한 화면으로, 아니면 홈으로 간다. */
+    public TokenResponse withNewUser(boolean newUser) {
+        return new TokenResponse(accessToken, accessTokenExpiresIn, refreshToken, refreshTokenExpiresAt, user, newUser);
     }
 }

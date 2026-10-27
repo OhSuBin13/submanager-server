@@ -6,5 +6,10 @@ spring:
     password: ${TEST_DB_PASSWORD:submanager}
 
 app:
+  social:
+    kakao:
+      app-id: ${KAKAO_APP_ID:123456}
+    google:
+      client-id: ${GOOGLE_WEB_CLIENT_ID:local-google-client-id.apps.googleusercontent.com}
   jwt:
     secret: test-only-jwt-secret-0123456789abcdefghijklmnop

@@ -26,6 +26,8 @@ public class JwtProvider {
 
     public static final String ISSUER = "submanager";
     static final String ROLE_CLAIM = "role";
+    /** 이메일 인증 링크처럼 용도가 따로 있는 토큰이 붙이는 클레임. 액세스 토큰으로는 거부한다. */
+    public static final String PURPOSE_CLAIM = "purpose";
     /** 서버와 앱 사이 시계 오차 허용 */
     private static final long CLOCK_SKEW_SECONDS = 60;
 
@@ -63,6 +65,9 @@ public class JwtProvider {
     public AuthPrincipal parse(String token) {
         try {
             Claims claims = parser.parseSignedClaims(token).getPayload();
+            if (claims.containsKey(PURPOSE_CLAIM)) {
+                throw new AuthException(AuthErrorCode.AUTH_TOKEN_INVALID);
+            }
             Long userId = Long.valueOf(claims.getSubject());
             UserRole role = UserRole.valueOf(claims.get(ROLE_CLAIM, String.class));
             return new AuthPrincipal(userId, role);
