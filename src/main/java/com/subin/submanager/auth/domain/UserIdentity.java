@@ -75,4 +75,12 @@ public class UserIdentity extends BaseTimeEntity {
     public void verifyEmail(Instant now) {
         this.emailVerifiedAt = now;
     }
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
 }

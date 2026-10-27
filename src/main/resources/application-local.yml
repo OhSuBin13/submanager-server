@@ -13,5 +13,10 @@ management:
       show-details: always   # 로컬에서는 어떤 항목이 DOWN인지 보이도록
 
 app:
+  social:
+    kakao:
+      app-id: ${KAKAO_APP_ID:123456}
+    google:
+      client-id: ${GOOGLE_WEB_CLIENT_ID:local-google-client-id.apps.googleusercontent.com}
   jwt:
     secret: ${JWT_SECRET:local-dev-only-jwt-secret-change-me-0123456789}

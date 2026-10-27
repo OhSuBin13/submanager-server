@@ -37,6 +37,12 @@ com.subin.submanager
 - 에러는 모두 `{ "code", "message" }` 형식입니다. 코드 목록은 `AuthErrorCode`, `CommonErrorCode`.
 - `JWT_SECRET`은 32자 이상이어야 하며, 로컬 프로필은 `application-local.yml`의 개발용 값을 씁니다.
 
+로그인 4종 ([명세](https://claude.ai/artifact/NDZb8GZhQsygYuRipKSR8W)):
+
+- `POST /auth/kakao`, `/auth/naver`, `/auth/google`: 본문 `{ token, deviceId }`. 서버가 각 회사 API(카카오 access_token_info + user/me, 네이버 nid/me, 구글 JWKS 서명 검증)로 토큰을 확인하고 `(provider, id)`로 회원을 찾거나 만든 뒤 토큰을 발급합니다. 응답의 `newUser`로 가입 여부를 알 수 있습니다.
+- `POST /auth/email/signup` → 인증 메일 링크(`GET /auth/email/verify?token=`) 클릭 → `POST /auth/email/login`. 인증 전에는 로그인할 수 없고(403 `EMAIL_NOT_VERIFIED`), 인증 메일 발송이 실패하면 가입이 롤백됩니다(502). `POST /auth/email/resend-verification`은 항상 204입니다.
+- 로그인 수단마다 별도 계정입니다. 비밀번호 찾기는 MVP에 없습니다.
+
 ## DB 스키마
 
 마이그레이션은 `src/main/resources/db/migration`에 있고, JPA는 `ddl-auto=validate`로 스키마를 바꾸지 않습니다. 이미 적용된 파일은 고치지 말고 `V3__...sql`처럼 새 파일을 추가하세요.
@@ -55,5 +61,8 @@ EC2의 `/home/ec2-user/.env.prod`에서 주입합니다(`--spring.profiles.activ
 |---|---|
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | RDS 접속 |
 | `JWT_SECRET` | JWT 서명 키 |
+| `KAKAO_APP_ID` | 카카오 앱 ID. 토큰이 우리 앱 것인지 확인 |
+| `GOOGLE_WEB_CLIENT_ID` | 구글 웹 클라이언트 ID. ID 토큰의 `aud` 확인 |
+| `APP_BASE_URL` | 인증 메일 링크의 서버 주소 (`https://api.<도메인>`) |
 | `FIREBASE_CREDENTIALS_BASE64` | FCM 서비스 계정 키 (base64) |
 | `RESEND_API_KEY`, `MAIL_FROM` | 인증 메일 발송 (Resend SMTP) |
