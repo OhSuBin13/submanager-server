@@ -53,7 +53,15 @@ public class RefreshToken extends BaseCreatedTimeEntity {
     }
 
     public boolean isUsable(Instant now) {
-        return revokedAt == null && now.isBefore(expiresAt);
+        return !isRevoked() && !isExpired(now);
+    }
+
+    public boolean isRevoked() {
+        return revokedAt != null;
+    }
+
+    public boolean isExpired(Instant now) {
+        return !now.isBefore(expiresAt);
     }
 
     public void revoke(Instant now) {

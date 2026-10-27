@@ -27,6 +27,16 @@ com.subin.submanager
 
 각 기능 패키지는 `domain`(엔티티·리포지토리) 아래에 시작하고, API를 붙일 때 `api`(컨트롤러·DTO)와 `application`(서비스)을 추가합니다.
 
+## 인증
+
+세션 없이 JWT로만 인증합니다. 명세: [로그인·JWT 인증 명세 (COD-7)](https://claude.ai/artifact/2NYC5qdKKZBbQyqkCp61Fq).
+
+- 액세스 토큰: HS256 JWT, 1시간. `Authorization: Bearer <토큰>` 헤더로 보냅니다. 필터(`JwtAuthenticationFilter`)는 DB를 읽지 않습니다.
+- 리프레시 토큰: 32바이트 난수, 30일. DB에는 SHA-256 해시만 저장하고 `POST /auth/refresh`마다 새로 발급합니다(회전). 폐기된 토큰이 다시 들어오면 그 회원의 토큰을 전부 폐기합니다.
+- 로그인 4종은 회원을 찾거나 만든 뒤 `AuthTokenService.issueTokens()`만 호출하면 됩니다.
+- 에러는 모두 `{ "code", "message" }` 형식입니다. 코드 목록은 `AuthErrorCode`, `CommonErrorCode`.
+- `JWT_SECRET`은 32자 이상이어야 하며, 로컬 프로필은 `application-local.yml`의 개발용 값을 씁니다.
+
 ## DB 스키마
 
 마이그레이션은 `src/main/resources/db/migration`에 있고, JPA는 `ddl-auto=validate`로 스키마를 바꾸지 않습니다. 이미 적용된 파일은 고치지 말고 `V3__...sql`처럼 새 파일을 추가하세요.
