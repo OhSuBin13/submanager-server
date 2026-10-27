@@ -72,6 +72,21 @@ public class User extends BaseTimeEntity {
         return status == UserStatus.ACTIVE;
     }
 
+    public boolean isSuspended() {
+        return status == UserStatus.SUSPENDED;
+    }
+
+    public boolean isWithdrawn() {
+        return status == UserStatus.WITHDRAWN;
+    }
+
+    /** 운영자 정지. MVP에서는 DB에서 직접 처리하므로 테스트와 이후 운영 도구에서 쓴다. */
+    public void suspend(Instant now, String reason) {
+        this.status = UserStatus.SUSPENDED;
+        this.suspendedAt = now;
+        this.suspensionReason = reason;
+    }
+
     public void withdraw(Instant now) {
         this.status = UserStatus.WITHDRAWN;
         this.withdrawnAt = now;

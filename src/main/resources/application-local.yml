@@ -11,3 +11,7 @@ management:
   endpoint:
     health:
       show-details: always   # 로컬에서는 어떤 항목이 DOWN인지 보이도록
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:local-dev-only-jwt-secret-change-me-0123456789}
