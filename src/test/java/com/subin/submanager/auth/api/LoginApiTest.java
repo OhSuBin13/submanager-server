@@ -40,6 +40,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.MailSendException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -64,6 +65,7 @@ class LoginApiTest {
     @Autowired UserIdentityRepository userIdentityRepository;
     @Autowired EmailVerificationTokenProvider verificationTokenProvider;
     @Autowired TransactionTemplate transactionTemplate;
+    @Autowired JdbcTemplate jdbcTemplate;
 
     @MockitoBean KakaoTokenVerifier kakaoTokenVerifier;
     @MockitoBean NaverTokenVerifier naverTokenVerifier;
@@ -217,6 +219,28 @@ class LoginApiTest {
     }
 
     @Test
+    void 비밀번호가_바뀐_뒤에는_이전_인증_링크가_무효다() throws Exception {
+        mockMvc.perform(signUp(EMAIL, PASSWORD, null)).andExpect(status().isCreated());
+        UserIdentity before = userIdentityRepository
+                .findByProviderAndProviderUserId(AuthProvider.EMAIL, EMAIL).orElseThrow();
+        String oldLink = verificationTokenProvider.create(before, Instant.now());
+
+        expirePendingSignUp();
+        mockMvc.perform(signUp(EMAIL, "newpass99", null)).andExpect(status().isCreated());
+
+        // 예전 비밀번호로 발급된 링크는 새 비밀번호를 인증해 주지 않는다.
+        mockMvc.perform(get("/auth/email/verify").param("token", oldLink))
+                .andExpect(status().isBadRequest());
+        UserIdentity after = userIdentityRepository
+                .findByProviderAndProviderUserId(AuthProvider.EMAIL, EMAIL).orElseThrow();
+        assertThat(after.isEmailVerified()).isFalse();
+
+        String newLink = verificationTokenProvider.create(after, Instant.now());
+        mockMvc.perform(get("/auth/email/verify").param("token", newLink)).andExpect(status().isOk());
+        mockMvc.perform(emailLogin(EMAIL, "newpass99")).andExpect(status().isOk());
+    }
+
+    @Test
     void 닉네임을_생략하면_이메일_앞부분이_닉네임이다() throws Exception {
         mockMvc.perform(signUp(EMAIL, PASSWORD, null)).andExpect(status().isCreated());
 
@@ -237,9 +261,21 @@ class LoginApiTest {
     }
 
     @Test
-    void 인증된_주소로_다시_가입하면_409이고_미인증_주소면_메일을_다시_보낸다() throws Exception {
+    void 같은_주소로_다시_가입하면_인증_대기_중엔_409이고_링크가_만료된_뒤엔_비밀번호를_바꿔_다시_보낸다() throws Exception {
         mockMvc.perform(signUp(EMAIL, PASSWORD, "수빈")).andExpect(status().isCreated());
 
+        // 인증 링크가 살아 있는 24시간 안: 다른 사람이 비밀번호를 바꿔치기할 수 없다.
+        mockMvc.perform(signUp(EMAIL, "newpass99", "새닉네임"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_VERIFICATION_PENDING"));
+        verify(mailService, times(1)).sendHtml(eq(EMAIL), anyString(), anyString());
+        assertThat(nicknameOf(EMAIL)).isEqualTo("수빈");
+        mockMvc.perform(emailLogin(EMAIL, "newpass99"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("EMAIL_LOGIN_FAILED"));
+
+        // 링크가 만료된 뒤: 새 비밀번호·닉네임으로 바꾸고 메일을 다시 보낸다.
+        expirePendingSignUp();
         mockMvc.perform(signUp(EMAIL, "newpass99", "새닉네임"))
                 .andExpect(status().isCreated());
         verify(mailService, times(2)).sendHtml(eq(EMAIL), anyString(), anyString());
@@ -304,6 +340,12 @@ class LoginApiTest {
         return transactionTemplate.execute(tx -> userIdentityRepository
                 .findByProviderAndProviderUserId(AuthProvider.EMAIL, email).orElseThrow()
                 .getUser().getNickname());
+    }
+
+    /** 미인증 가입을 하루 전 것으로 만들어 인증 링크(24시간)가 만료된 상태를 흉내 낸다. */
+    private void expirePendingSignUp() {
+        jdbcTemplate.update("UPDATE user_identities SET updated_at = now() - interval '2 days'"
+                + " WHERE provider = 'EMAIL' AND provider_user_id = ?", EMAIL);
     }
 
     private void verifyEmail() {

@@ -33,6 +33,8 @@ public class EmailAuthService {
     private static final Logger log = LoggerFactory.getLogger(EmailAuthService.class);
     private static final int NICKNAME_MAX_LENGTH = 30;
     private static final Duration RESEND_INTERVAL = Duration.ofMinutes(1);
+    /** 미인증 가입의 비밀번호를 다른 가입 요청이 바꿔치기할 수 없는 기간. 인증 링크 유효기간과 같다. */
+    static final Duration PENDING_LOCK = EmailVerificationTokenProvider.TTL;
     static final String MAIL_SUBJECT = "[구독관리] 이메일 인증";
 
     private final UserRepository userRepository;
@@ -71,19 +73,25 @@ public class EmailAuthService {
     }
 
     /**
-     * @throws AuthException EMAIL_ALREADY_REGISTERED(인증 끝난 주소), MAIL_SEND_FAILED(메일 실패, 가입 롤백)
+     * @throws AuthException EMAIL_ALREADY_REGISTERED(인증 끝난 주소), EMAIL_VERIFICATION_PENDING(24시간 안의 미인증 주소),
+     *                       MAIL_SEND_FAILED(메일 실패, 가입 롤백)
      */
     public EmailSignUpResponse signUp(String rawEmail, String password, String nickname) {
         String email = normalize(rawEmail);
         String passwordHash = passwordEncoder.encode(password);
         String resolvedNickname = nicknameOf(nickname, email);
+        Instant now = Instant.now(clock);
 
         UserIdentity identity = userIdentityRepository.findByProviderAndProviderUserId(AuthProvider.EMAIL, email)
                 .map(existing -> {
                     if (existing.isEmailVerified()) {
                         throw new AuthException(AuthErrorCode.EMAIL_ALREADY_REGISTERED);
                     }
-                    // 미인증 상태로 다시 가입: 비밀번호·닉네임을 새 값으로 바꾸고 메일만 다시 보낸다.
+                    if (now.isBefore(existing.getUpdatedAt().plus(PENDING_LOCK))) {
+                        // 인증 링크가 살아 있는 동안은 비밀번호를 바꿔치기할 수 없다. 메일을 다시 받으려면 재발송 API.
+                        throw new AuthException(AuthErrorCode.EMAIL_VERIFICATION_PENDING);
+                    }
+                    // 링크가 만료된 미인증 가입: 비밀번호·닉네임을 새 값으로 바꾸고 메일을 다시 보낸다.
                     existing.changePassword(passwordHash);
                     existing.getUser().changeNickname(resolvedNickname);
                     return existing;
@@ -93,17 +101,19 @@ public class EmailAuthService {
                     return userIdentityRepository.saveAndFlush(UserIdentity.email(user, email, passwordHash));
                 });
 
-        sendVerification(identity);
+        sendVerification(identity, now);
         return new EmailSignUpResponse(email);
     }
 
     /**
-     * @throws AuthException EMAIL_VERIFICATION_INVALID
+     * @throws AuthException EMAIL_VERIFICATION_INVALID(토큰이 틀리거나, 발급 뒤 비밀번호가 바뀌었으면)
      */
     public void verify(String token) {
-        Long identityId = tokenProvider.parse(token);
-        UserIdentity identity = userIdentityRepository.findById(identityId)
+        EmailVerificationTokenProvider.Verification verification = tokenProvider.parse(token);
+        UserIdentity identity = userIdentityRepository.findById(verification.identityId())
                 .filter(found -> found.getProvider() == AuthProvider.EMAIL)
+                .filter(found -> EmailVerificationTokenProvider.fingerprint(found.getPasswordHash())
+                        .equals(verification.passwordFingerprint()))
                 .orElseThrow(() -> new AuthException(AuthErrorCode.EMAIL_VERIFICATION_INVALID));
         if (!identity.isEmailVerified()) {
             identity.verifyEmail(Instant.now(clock));
@@ -117,12 +127,25 @@ public class EmailAuthService {
                 .filter(identity -> !identity.isEmailVerified())
                 .ifPresent(identity -> {
                     Instant now = Instant.now(clock);
-                    Instant last = lastSentAt.get(email);
-                    if (last != null && now.isBefore(last.plus(RESEND_INTERVAL))) {
+                    if (!reserveSendSlot(email, now)) {
                         return;
                     }
-                    sendVerification(identity);
+                    try {
+                        sendVerification(identity, now);
+                    } catch (AuthException e) {
+                        lastSentAt.remove(email, now); // 못 보냈으면 1분을 기다리게 하지 않는다.
+                        throw e;
+                    }
                 });
+    }
+
+    /**
+     * 1분이 지났으면 지금 시각을 기록하고 true. 같은 주소의 요청이 동시에 들어와도 compute가 원자적이라 한 요청만 true를 받는다.
+     */
+    private boolean reserveSendSlot(String email, Instant now) {
+        Instant reserved = lastSentAt.compute(email, (key, last) ->
+                last != null && now.isBefore(last.plus(RESEND_INTERVAL)) ? last : now);
+        return reserved == now; // 우리가 넣은 바로 그 객체가 돌아왔으면 이 요청이 자리를 잡은 것
     }
 
     /**
@@ -142,8 +165,7 @@ public class EmailAuthService {
         return authTokenService.issueTokens(identity.getUser(), deviceId).withNewUser(false);
     }
 
-    private void sendVerification(UserIdentity identity) {
-        Instant now = Instant.now(clock);
+    private void sendVerification(UserIdentity identity, Instant now) {
         String link = baseUrl + "/auth/email/verify?token=" + tokenProvider.create(identity, now);
         try {
             mailService.sendHtml(identity.getEmail(), MAIL_SUBJECT, pages.verificationMail(link));
